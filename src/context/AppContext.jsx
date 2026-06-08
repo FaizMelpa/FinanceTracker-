@@ -111,12 +111,61 @@ function reducer(state, action) {
         })
       }
     }
+    case 'ADD_DEBT_WITH_TRANSFER': {
+      const { debt, accountId, amount, direction, date } = action.payload
+      // meminjamkan = uang keluar dari akun; dipinjam = uang masuk ke akun
+      const accounts = state.accounts.map(a => {
+        if (a.id !== accountId) return a
+        return { ...a, balance: direction === 'meminjamkan' ? a.balance - amount : a.balance + amount }
+      })
+      const tx = { id: Date.now() + '_debt', type: direction === 'meminjamkan' ? 'expense' : 'income', amount, category: direction === 'meminjamkan' ? 'other_exp' : 'other_inc', accountId, note: direction === 'meminjamkan' ? `Pinjaman ke ${debt.name}` : `Pinjaman dari ${debt.name}`, date, isTransfer: true, createdAt: new Date().toISOString() }
+      return { ...state, debts: [...state.debts, debt], accounts, transactions: [tx, ...state.transactions] }
+    }
+    case 'PAY_DEBT_WITH_TRANSFER': {
+      const { debtId, amount, date, note, accountId } = action.payload
+      const debt = state.debts.find(d => d.id === debtId)
+      if (!debt) return state
+      const payments = [...(debt.payments || []), { id: Date.now().toString(), amount, date, note, accountId }]
+      const paid = payments.reduce((s, p) => s + p.amount, 0)
+      const updatedDebt = { ...debt, payments, paid, remaining: debt.total - paid, status: paid >= debt.total ? 'lunas' : 'aktif' }
+      // meminjamkan = terima uang masuk; dipinjam = bayar uang keluar
+      const accounts = state.accounts.map(a => {
+        if (a.id !== accountId) return a
+        return { ...a, balance: debt.direction === 'meminjamkan' ? a.balance + amount : a.balance - amount }
+      })
+      const tx = { id: Date.now() + '_pay', type: debt.direction === 'meminjamkan' ? 'income' : 'expense', amount, category: debt.direction === 'meminjamkan' ? 'other_inc' : 'other_exp', accountId, note: note || `Bayar hutang ${debt.name}`, date, isTransfer: true, createdAt: new Date().toISOString() }
+      return { ...state, debts: state.debts.map(d => d.id === debtId ? updatedDebt : d), accounts, transactions: [tx, ...state.transactions] }
+    }
 
     // ── Investments ──
     case 'ADD_INV':    return { ...state, investments: [...state.investments, action.payload] }
     case 'UPDATE_INV': return { ...state, investments: state.investments.map(i => i.id === action.payload.id ? action.payload : i) }
     case 'DELETE_INV': return { ...state, investments: state.investments.filter(i => i.id !== action.payload), investmentHistory: state.investmentHistory.filter(h => h.investmentId !== action.payload) }
     case 'ADD_INV_HISTORY': return { ...state, investmentHistory: [action.payload, ...state.investmentHistory] }
+    case 'ADD_INV_WITH_TRANSFER': {
+      const { inv, accountId, amount, date } = action.payload
+      const accounts = state.accounts.map(a => {
+        if (a.id !== accountId) return a
+        return { ...a, balance: a.balance - amount }
+      })
+      const tx = { id: Date.now() + '_inv', type: 'expense', amount, category: 'other_exp', accountId, note: `Investasi ${inv.name}`, date, isTransfer: true, createdAt: new Date().toISOString() }
+      const hist = { id: Date.now() + '_h', investmentId: inv.id, type: 'setor', amount, accountId, note: 'Modal awal', date, createdAt: new Date().toISOString() }
+      return { ...state, investments: [...state.investments, { ...inv, accountId }], accounts, transactions: [tx, ...state.transactions], investmentHistory: [hist, ...state.investmentHistory] }
+    }
+    case 'INV_HISTORY_WITH_TRANSFER': {
+      const { inv, histType, amount, accountId, note, date } = action.payload
+      // setor = uang keluar dari akun ke investasi; tarik = uang masuk dari investasi
+      const accounts = state.accounts.map(a => {
+        if (a.id !== accountId) return a
+        return { ...a, balance: histType === 'setor' ? a.balance - amount : a.balance + amount }
+      })
+      const tx = { id: Date.now() + '_invh', type: histType === 'setor' ? 'expense' : 'income', amount, category: histType === 'setor' ? 'other_exp' : 'other_inc', accountId, note: note || `${histType === 'setor' ? 'Setor' : 'Tarik'} investasi ${inv.name}`, date, isTransfer: true, createdAt: new Date().toISOString() }
+      const updatedInv = histType === 'setor'
+        ? { ...inv, modal: inv.modal + amount, currentValue: inv.currentValue + amount }
+        : { ...inv, currentValue: Math.max(0, inv.currentValue - amount) }
+      const hist = { id: Date.now() + '_h', investmentId: inv.id, type: histType, amount, accountId, note, date, createdAt: new Date().toISOString() }
+      return { ...state, investments: state.investments.map(i => i.id === inv.id ? updatedInv : i), accounts, transactions: [tx, ...state.transactions], investmentHistory: [hist, ...state.investmentHistory] }
+    }
 
     // ── Settings ──
     case 'UPDATE_SETTINGS': return { ...state, settings: { ...state.settings, ...action.payload } }
