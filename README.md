@@ -21,33 +21,6 @@ Aplikasi catatan keuangan personal — React + Vite + Tailwind + Capacitor.
 - 🌙 Full dark mode
 - 📴 100% offline
 
----
-
-## 🚀 Cara Build APK (dari HP)
-
-### 1. Fork / Upload ke GitHub
-- Buka [github.com](https://github.com) di HP
-- Buat repo baru → upload semua file project ini
-
-### 2. Aktifkan GitHub Actions
-- Buka repo → tab **Actions**
-- Kalau ada prompt "enable workflows" → klik **Enable**
-
-### 3. Trigger Build
-- Setiap kali lo push/commit kode → build otomatis jalan
-- Atau manual: tab **Actions** → **Build Android APK** → **Run workflow**
-
-### 4. Download APK
-- Tab **Actions** → pilih workflow yang sudah selesai ✅
-- Scroll ke bawah → **Artifacts** → **Finance-Tracker-APK**
-- Download → extract → install di HP
-
-### 5. Install APK
-- Pindahkan APK ke HP
-- Buka file manager → tap APK
-- Kalau muncul "install dari sumber tidak dikenal" → izinkan
-
----
 
 ## 📁 Struktur Project
 
