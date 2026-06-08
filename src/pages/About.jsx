@@ -11,7 +11,7 @@ export default function About({ navigate }) {
     { icon: '🤝', label: 'Hutang Piutang' },
     { icon: '💹', label: 'Portofolio Investasi' },
     { icon: '📷', label: 'Foto Struk Transaksi' },
-    { icon: '💾', label: 'Backup & Restore Excel' },
+    { icon: '💾', label: 'Backup & Restore' },
     { icon: '📤', label: 'Import dari Wallet Lain' },
     { icon: '🌙', label: 'Full Dark Mode' },
     { icon: '📴', label: '100% Offline' },
@@ -29,7 +29,7 @@ export default function About({ navigate }) {
               style={{ background: 'linear-gradient(135deg, #00C896 0%, #00A87E 100%)' }}>
               <span style={{ fontSize: 48 }}>💰</span>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full border-2 border-primary flex items-center justify-center"
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full border-2 flex items-center justify-center"
               style={{ background: '#0F1117', borderColor: '#00C896' }}>
               <span className="font-black text-sm" style={{ color: '#00C896' }}>F</span>
             </div>
@@ -38,9 +38,11 @@ export default function About({ navigate }) {
           <h1 className="text-white font-black text-2xl">Finance Tracker</h1>
           <p className="text-text-muted text-sm mt-1">Versi 1.0.0</p>
 
-          <div className="mt-6 px-8 py-5 rounded-3xl border border-border text-center" style={{ background: '#1A1D27' }}>
-            <p className="text-text-muted text-sm mb-2">Thanks to Allah</p>
-            <p className="text-white font-black text-xl gradient-text">Dncelzie</p>
+          <div className="mt-6 px-6 py-5 rounded-3xl border border-border text-center w-full" style={{ background: '#1A1D27' }}>
+            <p className="font-semibold text-base mb-3 leading-relaxed" style={{ color: '#00C896' }}>
+              "Apapun yang menjadi takdirmu akan mencari jalannya untuk menemukanmu"
+            </p>
+            <p className="text-text-muted text-sm">by <span className="text-white font-bold">Dncelzie</span></p>
           </div>
         </div>
 
@@ -66,6 +68,7 @@ export default function About({ navigate }) {
             { label: 'Penyimpanan', val: 'Lokal (Offline)' },
             { label: 'Package', val: 'com.financetracker.fz' },
             { label: 'Framework', val: 'React + Capacitor' },
+            { label: 'by', val: 'Dncelzie' },
           ].map((item, i) => (
             <div key={i} className="flex justify-between py-2 border-b border-border last:border-0">
               <span className="text-text-muted text-sm">{item.label}</span>

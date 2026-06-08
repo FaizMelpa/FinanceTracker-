@@ -1,19 +1,17 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatRp, formatRpShort, formatDate, INVESTMENT_TYPES, getInvestmentType } from '../utils/constants'
-import { PageHeader, BottomSheet, Button, ProgressBar, EmptyState, ConfirmDialog, showToast } from '../components/UI'
+import { PageHeader, BottomSheet, Button, EmptyState, ConfirmDialog, showToast } from '../components/UI'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 
-const EMPTY_INV = { name: '', type: 'stock', modal: '', currentValue: '', note: '', startDate: new Date().toISOString().slice(0, 10) }
+const EMPTY_INV = { name: '', type: 'stock', modal: '', note: '', startDate: new Date().toISOString().slice(0, 10), accountId: '' }
 
 export default function Investments({ navigate }) {
   const { state, dispatch, getTotalInvestment } = useApp()
   const [showForm, setShowForm] = useState(false)
   const [showHistory, setShowHistory] = useState(null)
-  const [showUpdateValue, setShowUpdateValue] = useState(null)
   const [form, setForm] = useState(EMPTY_INV)
-  const [newValue, setNewValue] = useState('')
-  const [histForm, setHistForm] = useState({ type: 'setor', amount: '', note: '', date: new Date().toISOString().slice(0, 10) })
+  const [histForm, setHistForm] = useState({ type: 'setor', amount: '', note: '', date: new Date().toISOString().slice(0, 10), accountId: '' })
   const [deleteId, setDeleteId] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
 
@@ -26,41 +24,56 @@ export default function Investments({ navigate }) {
 
   const handleSave = () => {
     if (!form.name || !form.modal) { showToast('Lengkapi data', 'error'); return }
+    if (!form.accountId) { showToast('Pilih akun sumber dana', 'error'); return }
     const modal = parseInt(form.modal.replace(/\D/g, ''))
-    const currentValue = parseInt(form.currentValue.replace(/\D/g, '') || form.modal.replace(/\D/g, ''))
-    dispatch({
-      type: 'ADD_INV',
-      payload: { id: Date.now().toString(), name: form.name, type: form.type, modal, currentValue, note: form.note, startDate: form.startDate, createdAt: new Date().toISOString() }
-    })
+    dispatch({ type: 'ADD_INV_WITH_TRANSFER', payload: {
+      inv: { id: Date.now().toString(), name: form.name, type: form.type, modal, currentValue: modal, note: form.note, startDate: form.startDate, createdAt: new Date().toISOString() },
+      accountId: form.accountId,
+      amount: modal,
+      date: form.startDate,
+    }})
     setForm(EMPTY_INV)
     setShowForm(false)
     showToast('Investasi ditambahkan!')
   }
 
-  const handleUpdateValue = () => {
-    if (!newValue) { showToast('Masukkan nilai', 'error'); return }
-    const val = parseInt(newValue.replace(/\D/g, ''))
-    dispatch({ type: 'UPDATE_INV', payload: { ...showUpdateValue, currentValue: val } })
-    setShowUpdateValue(null)
-    setNewValue('')
-    showToast('Nilai diperbarui!')
-  }
-
   const handleAddHistory = () => {
     if (!histForm.amount) { showToast('Masukkan jumlah', 'error'); return }
+    if (!histForm.accountId) { showToast('Pilih akun', 'error'); return }
     const amount = parseInt(histForm.amount.replace(/\D/g, ''))
     const inv = showHistory
-    // Update modal if setor
-    if (histForm.type === 'setor') {
-      dispatch({ type: 'UPDATE_INV', payload: { ...inv, modal: inv.modal + amount, currentValue: inv.currentValue + amount } })
-    } else {
-      dispatch({ type: 'UPDATE_INV', payload: { ...inv, currentValue: Math.max(0, inv.currentValue - amount) } })
-    }
-    dispatch({ type: 'ADD_INV_HISTORY', payload: { id: Date.now().toString(), investmentId: inv.id, ...histForm, amount, createdAt: new Date().toISOString() } })
-    setHistForm({ type: 'setor', amount: '', note: '', date: new Date().toISOString().slice(0, 10) })
+    dispatch({ type: 'INV_HISTORY_WITH_TRANSFER', payload: {
+      inv,
+      histType: histForm.type,
+      amount,
+      accountId: histForm.accountId,
+      note: histForm.note,
+      date: histForm.date,
+    }})
+    setHistForm({ type: 'setor', amount: '', note: '', date: new Date().toISOString().slice(0, 10), accountId: '' })
     setShowHistory(null)
     showToast('Riwayat dicatat!')
   }
+
+  const AccountPicker = ({ value, onChange, label }) => (
+    <div>
+      <p className="text-text-sec text-xs font-semibold mb-2">{label}</p>
+      <div className="grid grid-cols-1 gap-2">
+        {state.accounts.map(acc => (
+          <button key={acc.id} onClick={() => onChange(acc.id)}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 card-press text-left"
+            style={{ borderColor: value === acc.id ? '#00C896' : '#2A2D3E', background: value === acc.id ? 'rgba(0,200,150,0.1)' : '#1E2235', cursor: 'pointer' }}>
+            <span style={{ fontSize: 20 }}>{acc.icon}</span>
+            <div className="flex-1">
+              <p className="text-white text-sm font-semibold">{acc.name}</p>
+              <p className="text-text-muted text-xs">{formatRp(acc.balance)}</p>
+            </div>
+            {value === acc.id && <span style={{ color: '#00C896', fontSize: 16 }}>✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="h-full flex flex-col bg-bg">
@@ -78,11 +91,7 @@ export default function Investments({ navigate }) {
           <p className="text-white font-black text-3xl mb-3">{formatRpShort(portfolio.totalNow)}</p>
           <div className="flex gap-4">
             <div><p className="text-text-muted text-xs">Modal</p><p className="text-white font-bold text-sm">{formatRpShort(portfolio.totalModal)}</p></div>
-            <div><p className="text-text-muted text-xs">Profit/Loss</p>
-              <p className="font-bold text-sm" style={{ color: portfolio.profit >= 0 ? '#00C896' : '#FF6B6B' }}>
-                {portfolio.profit >= 0 ? '+' : ''}{formatRpShort(portfolio.profit)} ({portfolio.pct.toFixed(1)}%)
-              </p>
-            </div>
+            <div><p className="text-text-muted text-xs">Nilai Sekarang</p><p className="text-white font-bold text-sm">{formatRpShort(portfolio.totalNow)}</p></div>
           </div>
         </div>
 
@@ -122,10 +131,9 @@ export default function Investments({ navigate }) {
         ) : (
           state.investments.map(inv => {
             const t = getInvestmentType(inv.type)
-            const profit = inv.currentValue - inv.modal
-            const pct = inv.modal > 0 ? (profit / inv.modal) * 100 : 0
             const isExpanded = expandedId === inv.id
             const history = state.investmentHistory.filter(h => h.investmentId === inv.id)
+            const acc = state.accounts.find(a => a.id === inv.accountId)
             return (
               <div key={inv.id} className="bg-card rounded-2xl border border-border p-4 mb-3">
                 <div className="flex items-center justify-between mb-3" onClick={() => setExpandedId(isExpanded ? null : inv.id)}>
@@ -135,48 +143,36 @@ export default function Investments({ navigate }) {
                     </div>
                     <div>
                       <p className="text-white font-bold">{inv.name}</p>
-                      <p className="text-text-muted text-xs">{t.label}</p>
+                      <p className="text-text-muted text-xs">{t.label}{acc ? ` · ${acc.icon}${acc.name}` : ''}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-white font-black">{formatRpShort(inv.currentValue)}</p>
-                    <p className="text-xs font-bold" style={{ color: profit >= 0 ? '#00C896' : '#FF6B6B' }}>
-                      {profit >= 0 ? '+' : ''}{formatRpShort(profit)} ({pct.toFixed(1)}%)
-                    </p>
+                    <p className="text-text-muted text-xs">Modal: {formatRpShort(inv.modal)}</p>
                   </div>
                 </div>
 
-                <div className="flex justify-between mb-2">
-                  <div><p className="text-text-muted text-xs">Modal</p><p className="text-white text-sm font-semibold">{formatRp(inv.modal)}</p></div>
-                  <div className="text-right"><p className="text-text-muted text-xs">Nilai Sekarang</p><p className="text-white text-sm font-semibold">{formatRp(inv.currentValue)}</p></div>
-                </div>
-
-                <ProgressBar pct={Math.min(((inv.currentValue / inv.modal) * 100), 200)} color={profit >= 0 ? '#00C896' : '#FF6B6B'} />
-
                 {isExpanded && (
                   <div className="mt-3 animate-fade-in">
-                    {/* History */}
                     {history.length > 0 && (
                       <div className="p-3 rounded-xl mb-3" style={{ background: '#0F1117' }}>
                         <p className="text-text-sec text-xs font-semibold mb-2">Riwayat</p>
-                        {history.slice(0, 5).map(h => (
-                          <div key={h.id} className="flex justify-between py-1">
-                            <span className="text-text-muted text-xs">{formatDate(h.date)} · {h.type === 'setor' ? '📥' : '📤'} {h.note || h.type}</span>
-                            <span className="text-xs font-bold" style={{ color: h.type === 'setor' ? '#00C896' : '#FF6B6B' }}>
-                              {h.type === 'setor' ? '+' : '-'}{formatRp(h.amount)}
-                            </span>
-                          </div>
-                        ))}
+                        {history.slice(0, 5).map(h => {
+                          const hAcc = state.accounts.find(a => a.id === h.accountId)
+                          return (
+                            <div key={h.id} className="flex justify-between py-1">
+                              <span className="text-text-muted text-xs">{formatDate(h.date)} · {h.type === 'setor' ? '📥' : '📤'} {h.note || h.type}{hAcc ? ` · ${hAcc.icon}${hAcc.name}` : ''}</span>
+                              <span className="text-xs font-bold" style={{ color: h.type === 'setor' ? '#00C896' : '#FF6B6B' }}>
+                                {h.type === 'setor' ? '+' : '-'}{formatRp(h.amount)}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
 
                     <div className="flex gap-2">
-                      <button onClick={() => { setShowUpdateValue(inv); setNewValue(inv.currentValue.toString()) }}
-                        className="flex-1 py-2.5 rounded-xl text-xs font-bold card-press"
-                        style={{ background: 'rgba(255,204,2,0.15)', color: '#FFCC02', border: '1px solid rgba(255,204,2,0.2)', cursor: 'pointer' }}>
-                        📝 Update Nilai
-                      </button>
-                      <button onClick={() => setShowHistory(inv)}
+                      <button onClick={() => { setShowHistory(inv); setHistForm(f => ({ ...f, accountId: inv.accountId || '' })) }}
                         className="flex-1 py-2.5 rounded-xl text-xs font-bold card-press"
                         style={{ background: 'rgba(0,200,150,0.15)', color: '#00C896', border: '1px solid rgba(0,200,150,0.2)', cursor: 'pointer' }}>
                         💰 Setor/Tarik
@@ -214,14 +210,14 @@ export default function Investments({ navigate }) {
               ))}
             </div>
           </div>
+          <AccountPicker
+            value={form.accountId}
+            onChange={id => setForm(f => ({ ...f, accountId: id }))}
+            label="🏦 Transfer dari Akun (dana keluar)"
+          />
           <div>
             <p className="text-text-sec text-xs font-semibold mb-2">Modal Awal</p>
             <input type="text" inputMode="numeric" value={form.modal ? new Intl.NumberFormat('id-ID').format(parseInt(form.modal.replace(/\D/g,'') || 0)) : ''} onChange={e => setForm(f => ({ ...f, modal: e.target.value.replace(/\D/g,'') }))} placeholder="0"
-              className="w-full bg-elevated border border-border rounded-2xl px-4 py-3 text-white text-sm outline-none placeholder-text-muted" />
-          </div>
-          <div>
-            <p className="text-text-sec text-xs font-semibold mb-2">Nilai Sekarang (opsional)</p>
-            <input type="text" inputMode="numeric" value={form.currentValue ? new Intl.NumberFormat('id-ID').format(parseInt(form.currentValue.replace(/\D/g,'') || 0)) : ''} onChange={e => setForm(f => ({ ...f, currentValue: e.target.value.replace(/\D/g,'') }))} placeholder="Kosongkan jika sama dengan modal"
               className="w-full bg-elevated border border-border rounded-2xl px-4 py-3 text-white text-sm outline-none placeholder-text-muted" />
           </div>
           <div>
@@ -233,17 +229,7 @@ export default function Investments({ navigate }) {
         </div>
       </BottomSheet>
 
-      {/* Update Value */}
-      <BottomSheet show={!!showUpdateValue} onClose={() => setShowUpdateValue(null)} title="Update Nilai Investasi">
-        <div className="p-4 space-y-4">
-          <p className="text-text-sec text-sm">Masukkan nilai terkini dari <span className="text-white font-bold">{showUpdateValue?.name}</span></p>
-          <input type="text" inputMode="numeric" value={newValue ? new Intl.NumberFormat('id-ID').format(parseInt(newValue.replace(/\D/g,'') || 0)) : ''} onChange={e => setNewValue(e.target.value.replace(/\D/g,''))} placeholder="0"
-            className="w-full bg-elevated border border-border rounded-2xl px-4 py-3 text-white text-sm outline-none placeholder-text-muted" />
-          <Button onClick={handleUpdateValue}>Update</Button>
-        </div>
-      </BottomSheet>
-
-      {/* History */}
+      {/* Setor/Tarik */}
       <BottomSheet show={!!showHistory} onClose={() => setShowHistory(null)} title="Setor / Tarik">
         <div className="p-4 space-y-4">
           <div className="flex gap-2">
@@ -255,6 +241,11 @@ export default function Investments({ navigate }) {
               </button>
             ))}
           </div>
+          <AccountPicker
+            value={histForm.accountId}
+            onChange={id => setHistForm(f => ({ ...f, accountId: id }))}
+            label={histForm.type === 'setor' ? '🏦 Dari Akun (dana keluar)' : '🏦 Ke Akun (dana masuk)'}
+          />
           <input type="text" inputMode="numeric" value={histForm.amount ? new Intl.NumberFormat('id-ID').format(parseInt(histForm.amount.replace(/\D/g,'') || 0)) : ''} onChange={e => setHistForm(f => ({ ...f, amount: e.target.value.replace(/\D/g,'') }))} placeholder="Jumlah"
             className="w-full bg-elevated border border-border rounded-2xl px-4 py-3 text-white text-sm outline-none placeholder-text-muted" />
           <input type="date" value={histForm.date} onChange={e => setHistForm(f => ({ ...f, date: e.target.value }))}

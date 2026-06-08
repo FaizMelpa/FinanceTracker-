@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { PageHeader, Button, ConfirmDialog, showToast } from '../components/UI'
 import { formatDate, MONEFY_CAT_MAP } from '../utils/constants'
-import * as XLSX from 'xlsx'
+
+const DOWNLOAD_PATH = '/storage/emulated/0/Download/FinanceTracker'
 
 export default function BackupRestore({ navigate }) {
   const { state, dispatch } = useApp()
@@ -14,13 +15,34 @@ export default function BackupRestore({ navigate }) {
   const [pendingImport, setPendingImport] = useState(null)
   const [importing, setImporting] = useState(false)
 
+  // ── CSV helpers ──────────────────────────────────────
+  const toCSV = (rows, headers) => {
+    const escape = v => {
+      const s = String(v ?? '')
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    return [headers.join(','), ...rows.map(r => headers.map(h => escape(r[h])).join(','))].join('\n')
+  }
+
+  const downloadCSV = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── BACKUP ────────────────────────────────────────────
   const handleBackup = () => {
     try {
-      const wb = XLSX.utils.book_new()
+      const now = new Date()
+      const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
 
-      // Sheet 1: Transactions
-      const txData = state.transactions.map(t => ({
+      // Transactions CSV
+      const txHeaders = ['ID','Tipe','Jumlah','Kategori','Akun','Catatan','Tanggal','Transfer']
+      const txRows = state.transactions.map(t => ({
         'ID': t.id,
         'Tipe': t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
         'Jumlah': t.amount,
@@ -30,63 +52,13 @@ export default function BackupRestore({ navigate }) {
         'Tanggal': formatDate(t.date),
         'Transfer': t.isTransfer ? 'Ya' : 'Tidak',
       }))
-      const txSheet = XLSX.utils.json_to_sheet(txData)
-      XLSX.utils.book_append_sheet(wb, txSheet, 'Transaksi')
+      downloadCSV(toCSV(txRows, txHeaders), `FinanceTracker_Transaksi_${stamp}.csv`)
 
-      // Sheet 2: Accounts
-      const accData = state.accounts.map(a => ({
-        'ID': a.id,
-        'Nama': a.name,
-        'Tipe': a.type,
-        'Saldo': a.balance,
-        'Warna': a.color,
-        'Icon': a.icon,
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accData), 'Akun')
+      // Full backup JSON embedded in CSV (for restore)
+      const rawContent = `data\n"${JSON.stringify(state).replace(/"/g, '""')}"`
+      downloadCSV(rawContent, `FinanceTracker_Backup_${stamp}.csv`)
 
-      // Sheet 3: Budgets
-      const budgetData = state.budgets.map(b => ({
-        'ID': b.id,
-        'Kategori': b.category,
-        'Limit': b.limit,
-        'Periode': b.period,
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(budgetData), 'Anggaran')
-
-      // Sheet 4: Debts
-      const debtData = state.debts.map(d => ({
-        'ID': d.id,
-        'Nama': d.name,
-        'Total': d.total,
-        'Terbayar': d.paid,
-        'Sisa': d.remaining,
-        'Arah': d.direction,
-        'Status': d.status,
-        'Catatan': d.note || '',
-        'Tanggal': d.date,
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(debtData.length ? debtData : [{}]), 'Hutang')
-
-      // Sheet 5: Investments
-      const invData = state.investments.map(i => ({
-        'ID': i.id,
-        'Nama': i.name,
-        'Tipe': i.type,
-        'Modal': i.modal,
-        'Nilai Sekarang': i.currentValue,
-        'Catatan': i.note || '',
-        'Tanggal Mulai': i.startDate,
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(invData.length ? invData : [{}]), 'Investasi')
-
-      // Sheet 6: Raw JSON backup
-      const rawSheet = XLSX.utils.json_to_sheet([{ data: JSON.stringify(state) }])
-      XLSX.utils.book_append_sheet(wb, rawSheet, '_RAW_BACKUP')
-
-      const now = new Date()
-      const filename = `FinanceTracker_Backup_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.xlsx`
-      XLSX.writeFile(wb, filename)
-      showToast('Backup berhasil diunduh!')
+      showToast('Backup berhasil! Cek folder Downloads.')
     } catch (e) {
       showToast('Gagal backup: ' + e.message, 'error')
     }
@@ -99,19 +71,18 @@ export default function BackupRestore({ navigate }) {
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target.result, { type: 'binary' })
-        const rawSheet = wb.Sheets['_RAW_BACKUP']
-        if (!rawSheet) { showToast('File backup tidak valid', 'error'); return }
-        const raw = XLSX.utils.sheet_to_json(rawSheet)
-        if (!raw[0]?.data) { showToast('File backup tidak valid', 'error'); return }
-        const parsed = JSON.parse(raw[0].data)
+        const text = ev.target.result
+        const lines = text.split('\n')
+        if (lines[0].trim() !== 'data') { showToast('File backup tidak valid', 'error'); return }
+        const jsonStr = lines[1].replace(/^"|"$/g, '').replace(/""/g, '"')
+        const parsed = JSON.parse(jsonStr)
         setPendingRestore(parsed)
         setConfirmRestore(true)
       } catch (e) {
-        showToast('File tidak bisa dibaca', 'error')
+        showToast('File tidak bisa dibaca: ' + e.message, 'error')
       }
     }
-    reader.readAsBinaryString(file)
+    reader.readAsText(file, 'UTF-8')
     e.target.value = ''
   }
 
@@ -132,11 +103,8 @@ export default function BackupRestore({ navigate }) {
       try {
         const text = ev.target.result
         const lines = text.split('\n').filter(l => l.trim())
-        
-        // Detect separator
         const sep = lines[0].includes(';') ? ';' : ','
         const headers = lines[0].split(sep).map(h => h.trim().replace(/"/g, '').toLowerCase())
-        
         const transactions = []
         const accountNames = new Set()
 
@@ -145,8 +113,6 @@ export default function BackupRestore({ navigate }) {
           const row = {}
           headers.forEach((h, i) => row[h] = cols[i] || '')
 
-          // Parse Monefy format
-          // Common columns: date, account, category, amount, currency, description
           const dateRaw = row['date'] || row['tanggal'] || ''
           const accountRaw = row['account'] || row['akun'] || ''
           const categoryRaw = (row['category'] || row['kategori'] || '').toLowerCase()
@@ -155,35 +121,18 @@ export default function BackupRestore({ navigate }) {
           const typeRaw = (row['type'] || row['tipe'] || '').toLowerCase()
 
           if (!dateRaw || !amountRaw) return
-
           const amount = parseFloat(amountRaw.replace(',', '.').replace(/[^\d.]/g, ''))
           if (isNaN(amount) || amount === 0) return
 
           accountNames.add(accountRaw || 'Import')
-
-          // Map category
           const mappedCat = MONEFY_CAT_MAP[categoryRaw] || (amount < 0 ? 'other_exp' : 'other_inc')
-          const type = amount < 0 ? 'expense' : (typeRaw.includes('income') || typeRaw.includes('pemasukan') ? 'income' : amount > 0 && mappedCat.includes('salary') || mappedCat.includes('freelance') || mappedCat.includes('other_inc') ? 'income' : 'expense')
+          const type = amount < 0 ? 'expense' : (typeRaw.includes('income') || typeRaw.includes('pemasukan') ? 'income' : 'expense')
 
           let parsedDate
-          try {
-            parsedDate = new Date(dateRaw).toISOString()
-            if (isNaN(new Date(dateRaw))) throw new Error()
-          } catch {
-            parsedDate = new Date().toISOString()
-          }
+          try { parsedDate = new Date(dateRaw).toISOString(); if (isNaN(new Date(dateRaw))) throw new Error() }
+          catch { parsedDate = new Date().toISOString() }
 
-          transactions.push({
-            id: `monefy_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-            type,
-            amount: Math.abs(amount),
-            category: mappedCat,
-            accountId: accountRaw || 'Import',
-            note: noteRaw,
-            date: parsedDate,
-            createdAt: new Date().toISOString(),
-            importedFrom: 'monefy',
-          })
+          transactions.push({ id: `monefy_${Date.now()}_${Math.random().toString(36).slice(2)}`, type, amount: Math.abs(amount), category: mappedCat, accountId: accountRaw || 'Import', note: noteRaw, date: parsedDate, createdAt: new Date().toISOString(), importedFrom: 'monefy' })
         })
 
         setPendingImport({ transactions, accountNames: [...accountNames] })
@@ -200,33 +149,22 @@ export default function BackupRestore({ navigate }) {
 
   const doImport = () => {
     if (!pendingImport) return
-    // Add missing accounts
     const existingAccNames = state.accounts.map(a => a.name.toLowerCase())
     pendingImport.accountNames.forEach(name => {
       if (name && !existingAccNames.includes(name.toLowerCase())) {
-        dispatch({
-          type: 'ADD_ACC',
-          payload: { id: `acc_${Date.now()}_${Math.random().toString(36).slice(2)}`, name, type: 'bank', icon: '🏦', color: '#4FC3F7', balance: 0, currency: 'IDR', createdAt: new Date().toISOString() }
-        })
+        dispatch({ type: 'ADD_ACC', payload: { id: `acc_${Date.now()}_${Math.random().toString(36).slice(2)}`, name, type: 'bank', icon: '🏦', color: '#4FC3F7', balance: 0, currency: 'IDR', createdAt: new Date().toISOString() } })
       }
     })
-
-    // Map account names to IDs and import
     const allAccounts = [...state.accounts]
     const txsWithIds = pendingImport.transactions.map(tx => {
       const acc = allAccounts.find(a => a.name.toLowerCase() === (tx.accountId || '').toLowerCase())
       return { ...tx, accountId: acc?.id || state.accounts[0]?.id || 'acc1' }
     })
-
     dispatch({ type: 'BULK_ADD_TX', payload: txsWithIds })
     setConfirmImport(false)
     showToast(`${txsWithIds.length} transaksi berhasil diimpor!`)
     navigate('transactions')
   }
-
-  const lastBackup = state.transactions.length > 0
-    ? formatDate(Math.max(...state.transactions.map(t => new Date(t.createdAt || t.date))))
-    : null
 
   return (
     <div className="h-full flex flex-col bg-bg">
@@ -271,11 +209,15 @@ export default function BackupRestore({ navigate }) {
             </div>
             <div>
               <p className="text-white font-bold">Backup Data</p>
-              <p className="text-text-muted text-xs">Export ke file Excel (.xlsx)</p>
+              <p className="text-text-muted text-xs">Export ke file CSV</p>
             </div>
           </div>
+          <div className="bg-elevated rounded-xl p-3 mb-3">
+            <p className="text-text-sec text-xs font-semibold mb-1">📂 Lokasi file:</p>
+            <p className="text-text-muted text-xs font-mono">{DOWNLOAD_PATH}/</p>
+          </div>
           <p className="text-text-muted text-xs mb-3">
-            File akan tersimpan di folder Downloads HP lo. Simpan file ini dengan aman!
+            2 file akan didownload: data transaksi + file backup lengkap untuk restore.
           </p>
           <Button onClick={handleBackup}>💾 Backup Sekarang</Button>
         </div>
@@ -288,17 +230,17 @@ export default function BackupRestore({ navigate }) {
             </div>
             <div>
               <p className="text-white font-bold">Restore Data</p>
-              <p className="text-text-muted text-xs">Pulihkan dari file backup Excel</p>
+              <p className="text-text-muted text-xs">Pulihkan dari file backup (.csv)</p>
             </div>
           </div>
           <p className="text-text-muted text-xs mb-3">
-            ⚠️ Data saat ini akan <span style={{ color: '#FF6B6B' }}>ditimpa</span> dengan data dari file backup.
+            ⚠️ Pilih file <span style={{ color: '#00C896' }}>FinanceTracker_Backup_*.csv</span>. Data saat ini akan <span style={{ color: '#FF6B6B' }}>ditimpa</span>.
           </p>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleRestoreFile} className="hidden" />
-          <Button variant="secondary" onClick={() => fileRef.current?.click()}>📂 Pilih File Backup</Button>
+          <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleRestoreFile} className="hidden" />
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}>📂 Pilih File Backup CSV</Button>
         </div>
 
-        {/* Import dari Wallet Lain */}
+        {/* Import Monefy */}
         <div className="bg-card rounded-2xl border border-border p-4 mb-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(206,147,216,0.15)' }}>
@@ -309,9 +251,6 @@ export default function BackupRestore({ navigate }) {
               <p className="text-text-muted text-xs">Monefy, Money Manager, dll (CSV)</p>
             </div>
           </div>
-          <p className="text-text-muted text-xs mb-3">
-            Export data dari app lain dalam format CSV, lalu import di sini. Data akan <span style={{ color: '#00C896' }}>ditambahkan</span> ke data yang ada.
-          </p>
           <div className="bg-elevated rounded-xl p-3 mb-3">
             <p className="text-text-sec text-xs font-semibold mb-1">Cara Export dari Monefy:</p>
             <p className="text-text-muted text-xs">Settings → Export → pilih format CSV → simpan file</p>
@@ -327,10 +266,10 @@ export default function BackupRestore({ navigate }) {
           <p className="text-white font-bold text-sm mb-2">💡 Tips</p>
           <div className="space-y-2">
             {[
-              'Backup secara rutin minimal seminggu sekali',
-              'Simpan file backup di Google Drive atau cloud storage',
+              'Backup rutin minimal seminggu sekali',
+              'File backup tersimpan di Downloads/FinanceTracker',
+              'Gunakan file FinanceTracker_Backup_*.csv untuk restore',
               'Jangan hapus file backup lama, simpan beberapa versi',
-              'Setelah ganti HP, restore dari file backup terakhir',
             ].map((tip, i) => (
               <div key={i} className="flex gap-2">
                 <span style={{ color: '#00C896', fontSize: 12, marginTop: 1 }}>•</span>
@@ -341,22 +280,8 @@ export default function BackupRestore({ navigate }) {
         </div>
       </div>
 
-      {/* Confirm Restore */}
-      <ConfirmDialog
-        show={confirmRestore}
-        title="Restore Data?"
-        message="Data saat ini akan ditimpa dengan data backup. Tindakan ini tidak bisa dibatalkan!"
-        danger
-        onConfirm={doRestore}
-        onCancel={() => setConfirmRestore(false)} />
-
-      {/* Confirm Import */}
-      <ConfirmDialog
-        show={confirmImport}
-        title={`Import ${pendingImport?.transactions?.length || 0} Transaksi?`}
-        message={`Data dari wallet lain akan ditambahkan ke data yang ada. Akun baru: ${pendingImport?.accountNames?.join(', ') || '-'}`}
-        onConfirm={doImport}
-        onCancel={() => setConfirmImport(false)} />
+      <ConfirmDialog show={confirmRestore} title="Restore Data?" message="Data saat ini akan ditimpa dengan data backup. Tindakan ini tidak bisa dibatalkan!" danger onConfirm={doRestore} onCancel={() => setConfirmRestore(false)} />
+      <ConfirmDialog show={confirmImport} title={`Import ${pendingImport?.transactions?.length || 0} Transaksi?`} message={`Data dari wallet lain akan ditambahkan ke data yang ada. Akun baru: ${pendingImport?.accountNames?.join(', ') || '-'}`} onConfirm={doImport} onCancel={() => setConfirmImport(false)} />
     </div>
   )
 }
