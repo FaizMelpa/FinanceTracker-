@@ -75,7 +75,7 @@ export const ACCOUNT_TYPES = [
   { id: 'cash',       label: 'Tunai',        icon: '💵', color: '#A5D6A7' },
   { id: 'bank',       label: 'Bank',         icon: '🏦', color: '#4FC3F7' },
   { id: 'ewallet',    label: 'E-Wallet',     icon: '📱', color: '#CE93D8' },
-  { id: 'savings',    label: 'Tabungan',     icon: '🐷', color: '#FFD54F' },
+  { id: 'savings',    label: 'Tabungan',     icon: '🐓', color: '#FFD54F' },
   { id: 'investment', label: 'Investasi',    icon: '📊', color: '#FFCC02' },
   { id: 'debt',       label: 'Hutang',       icon: '🔴', color: '#EF9A9A' },
   { id: 'credit',     label: 'Kartu Kredit', icon: '💳', color: '#FF8A65' },
