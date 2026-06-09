@@ -14,6 +14,7 @@
 ---
 
 *"Apapun yang menjadi takdirmu akan mencari jalannya untuk menemukanmu"*
+
 **— Ali Bin Abi Thalib —**
 
 ---
@@ -35,33 +36,6 @@
 | 📤 **Import** | Import dari Monefy & wallet lain (CSV) |
 | 🌙 **Dark Mode** | Full dark mode — nyaman di malam hari |
 | 📴 **Offline** | Zero internet — data 100% di HP sendiri |
-
----
-
-## 🚀 Cara Build APK
-
-> Build dilakukan otomatis via **GitHub Actions** — tidak perlu laptop, cukup HP.
-
-### 1. Upload ke GitHub
-```
-Buat repo baru → upload semua file project ini
-```
-
-### 2. Trigger Build
-```
-Tab Actions → Build Android APK → Run workflow
-```
-> Build juga otomatis jalan setiap kali ada commit baru.
-
-### 3. Download APK
-```
-Tab Actions → pilih run yang ✅ → Artifacts → Finance-Tracker-APK → Download
-```
-
-### 4. Install di HP
-```
-Buka file .apk → izinkan install dari sumber tidak dikenal → Install
-```
 
 ---
 
@@ -147,7 +121,5 @@ GitHub Actions    → Build CI/CD
 ---
 
 <div align="center">
-
-Built with 🖤 by **Dncelzie**
 
 </div>
