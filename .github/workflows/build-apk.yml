@@ -43,20 +43,10 @@ jobs:
       - name: 📝 Inject Storage Permissions into AndroidManifest
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          # Tambah permission WRITE & READ EXTERNAL STORAGE sebelum <application>
           sed -i 's|<application|<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>\n    <application|g' "$MANIFEST"
-          echo "Permissions injected:"
-          grep "EXTERNAL_STORAGE\|MANAGE_EXTERNAL" "$MANIFEST"
+          echo "Permissions injected"
 
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 📦 Install Pillow
-        run: pip install Pillow
-
-      - name: 🎨 Generate App Icons
+      - name: 🎨 Override App Icons
         run: python3 gen_icons.py
 
       - name: 🔧 Setup Android SDK
