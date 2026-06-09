@@ -2,12 +2,8 @@
 export const formatRp = (n) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0)
 
-export const formatRpShort = (n) => {
-  if (n >= 1000000000) return `Rp${(n / 1000000000).toFixed(1)}M`
-  if (n >= 1000000) return `Rp${(n / 1000000).toFixed(1)}jt`
-  if (n >= 1000) return `Rp${(n / 1000).toFixed(0)}rb`
-  return `Rp${n}`
-}
+export const formatRpShort = (n) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0)
 
 // ── Date ──────────────────────────────────────────────
 export const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -84,7 +80,9 @@ export const ACCOUNT_TYPES = [
 // ── Investment Types ──────────────────────────────────
 export const INVESTMENT_TYPES = [
   { id: 'stock',      label: 'Saham',        icon: '📈', color: '#4FC3F7' },
-  { id: 'reksadana',  label: 'Reksa Dana',   icon: '📊', color: '#A5D6A7' },
+  { id: 'rd_pasar',   label: 'RD Pasar Uang', icon: '💵', color: '#A5D6A7' },
+  { id: 'rd_saham',   label: 'RD Saham',      icon: '📊', color: '#80CBC4' },
+  { id: 'rd_obligasi',label: 'RD Obligasi',   icon: '📄', color: '#B39DDB' },
   { id: 'crypto',     label: 'Crypto',       icon: '🪙', color: '#FFD54F' },
   { id: 'gold',       label: 'Emas',         icon: '🥇', color: '#FFCC02' },
   { id: 'deposito',   label: 'Deposito',     icon: '🏦', color: '#80DEEA' },
