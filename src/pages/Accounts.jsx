@@ -14,8 +14,6 @@ export default function Accounts({ navigate }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [adjustAmount, setAdjustAmount] = useState('')
   const [deleteId, setDeleteId] = useState(null)
-  const [showInvInTotal, setShowInvInTotal] = useState(false)
-  const [showDebtInTotal, setShowDebtInTotal] = useState(false)
   const [showKekayaan, setShowKekayaan] = useState(false)
   // selectedItems: { accId: bool, investasi: bool, piutang: bool }
   const [selectedItems, setSelectedItems] = useState({})
@@ -48,8 +46,6 @@ export default function Accounts({ navigate }) {
   }
   const clearAll = () => setSelectedItems({})
   const countSelected = Object.values(selectedItems).filter(Boolean).length
-    + (showInvInTotal ? inv.totalNow : 0)
-    - (showDebtInTotal ? debt.totalDebt : 0)
 
   const openAdd = () => { setEditAcc(null); setForm(EMPTY_FORM); setShowForm(true) }
   const openEdit = (acc) => {
@@ -104,56 +100,6 @@ export default function Accounts({ navigate }) {
           <p className="text-white/70 text-xs mb-1">Total Kekayaan Bersih</p>
           <p className="text-white font-black text-3xl mb-1">{formatRp(netWorth)}</p>
           <p className="text-white/70 text-xs">{state.accounts.length} akun</p>
-        </div>
-
-        {/* Investasi & Hutang — dengan toggle masuk/keluar dari total */}
-        <div className="bg-card rounded-2xl border border-border p-4 mb-4">
-          <p className="text-white font-bold text-sm mb-3">🔧 Komponen Total Kekayaan</p>
-          <p className="text-text-muted text-xs mb-3">Toggle untuk ikutkan / keluarkan dari total kekayaan di atas</p>
-
-          {/* Investasi */}
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(79,195,247,0.15)' }}>
-                <span style={{ fontSize: 18 }}>💹</span>
-              </div>
-              <div>
-                <p className="text-white text-sm font-semibold">Total Investasi</p>
-                <p className="font-bold text-sm" style={{ color: '#4FC3F7' }}>{formatRp(inv.totalNow)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <p className="text-text-muted text-xs">{showInvInTotal ? 'Dihitung' : 'Disembunyikan'}</p>
-              <button onClick={() => setShowInvInTotal(v => !v)}
-                className="relative w-12 h-6 rounded-full transition-colors"
-                style={{ background: showInvInTotal ? '#00C896' : '#2A2D3E', border: 'none', cursor: 'pointer' }}>
-                <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-                  style={{ transform: showInvInTotal ? 'translateX(26px)' : 'translateX(2px)' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* Hutang */}
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,107,107,0.15)' }}>
-                <span style={{ fontSize: 18 }}>🤝</span>
-              </div>
-              <div>
-                <p className="text-white text-sm font-semibold">Total Hutang</p>
-                <p className="font-bold text-sm" style={{ color: '#FF6B6B' }}>{formatRp(debt.totalDebt)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <p className="text-text-muted text-xs">{showDebtInTotal ? 'Dikurangi' : 'Disembunyikan'}</p>
-              <button onClick={() => setShowDebtInTotal(v => !v)}
-                className="relative w-12 h-6 rounded-full transition-colors"
-                style={{ background: showDebtInTotal ? '#FF6B6B' : '#2A2D3E', border: 'none', cursor: 'pointer' }}>
-                <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-                  style={{ transform: showDebtInTotal ? 'translateX(26px)' : 'translateX(2px)' }} />
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Distribusi Akun */}
