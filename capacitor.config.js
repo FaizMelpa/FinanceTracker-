@@ -1,7 +1,7 @@
 /** @type {import('@capacitor/cli').CapacitorConfig} */
 const config = {
-  appId: 'com.financetracker.fz',
-  appName: 'Finance Tracker',
+  appId: 'com.mycashjournal.Fz',
+  appName: 'Cash Journal',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
