@@ -67,7 +67,7 @@ export default function About({ navigate }) {
             { label: 'Versi', val: '1.0.0' },
             { label: 'Platform', val: 'Android' },
             { label: 'Penyimpanan', val: 'Lokal (Offline)' },
-            { label: 'Package', val: 'com.financetracker.fz' },
+            { label: 'Package', val: 'com.FinanceTracker.dncelzie' },
             { label: 'Framework', val: 'React + Capacitor' },
             { label: 'by', val: 'Dncelzie' },
           ].map((item, i) => (

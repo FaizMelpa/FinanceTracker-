@@ -1,7 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { EXPENSE_CATS, INCOME_CATS, formatRp } from '../utils/constants'
 import { Button, showToast } from '../components/UI'
+
+// Lazy import Capacitor Camera — hanya jalan di native
+const getCamera = async () => {
+  try {
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+    return { Camera, CameraResultType, CameraSource }
+  } catch {
+    return null
+  }
+}
 
 export default function AddTransaction({ navigate, params = {} }) {
   const { state, dispatch } = useApp()
@@ -13,44 +23,118 @@ export default function AddTransaction({ navigate, params = {} }) {
   const [toAccountId, setToAccountId] = useState(state.accounts[1]?.id || '')
   const [note, setNote] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 16))
+  const [struk, setStruk] = useState(null)
+  const [loadingPhoto, setLoadingPhoto] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS
   const selectedAcc = state.accounts.find(a => a.id === accountId)
-
-  const handleAmountChange = (val) => setAmount(val.replace(/\D/g, ''))
   const displayAmount = amount ? new Intl.NumberFormat('id-ID').format(parseInt(amount)) : ''
 
-  const handleSave = () => {
+  // ── Foto struk ───────────────────────────────────────
+  const handleFotoStruk = useCallback(async () => {
+    setLoadingPhoto(true)
+    try {
+      const cam = await getCamera()
+      if (!cam) {
+        // Browser fallback: pakai file input
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.capture = 'environment'
+        input.onchange = (e) => {
+          const file = e.target.files[0]
+          if (!file) { setLoadingPhoto(false); return }
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            setStruk(ev.target.result)
+            setLoadingPhoto(false)
+          }
+          reader.onerror = () => { showToast('Gagal baca foto', 'error'); setLoadingPhoto(false) }
+          reader.readAsDataURL(file)
+        }
+        input.oncancel = () => setLoadingPhoto(false)
+        input.click()
+        return
+      }
+
+      const { Camera, CameraResultType, CameraSource } = cam
+      const photo = await Camera.getPhoto({
+        quality: 70,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        width: 800,
+      })
+
+      if (photo?.dataUrl) {
+        setStruk(photo.dataUrl)
+      }
+    } catch (e) {
+      // User cancel atau error — jangan crash
+      if (!e.message?.includes('cancelled') && !e.message?.includes('canceled')) {
+        showToast('Gagal ambil foto', 'error')
+      }
+    } finally {
+      setLoadingPhoto(false)
+    }
+  }, [])
+
+  // ── Simpan transaksi ─────────────────────────────────
+  const handleSave = useCallback(async () => {
+    if (saving) return // prevent double tap
     if (!amount || parseInt(amount) === 0) { showToast('Masukkan jumlah', 'error'); return }
     if (!isTransfer && !category) { showToast('Pilih kategori', 'error'); return }
     if (!accountId) { showToast('Pilih akun', 'error'); return }
 
-    const parsedAmount = parseInt(amount)
-    const txDate = new Date(date).toISOString()
+    setSaving(true)
+    try {
+      const parsedAmount = parseInt(amount)
+      const txDate = new Date(date).toISOString()
 
-    if (isTransfer) {
-      if (accountId === toAccountId) { showToast('Akun tujuan harus berbeda', 'error'); return }
-      const fromAcc = state.accounts.find(a => a.id === accountId)
-      const toAcc = state.accounts.find(a => a.id === toAccountId)
-      dispatch({ type: 'TRANSFER', payload: { fromId: accountId, toId: toAccountId, amount: parsedAmount, note, date: txDate, fromName: fromAcc?.name, toName: toAcc?.name } })
-      showToast('Transfer berhasil!')
-    } else {
-      dispatch({
-        type: 'ADD_TX',
-        payload: { id: Date.now().toString(), type, amount: parsedAmount, category, accountId, note, date: txDate, createdAt: new Date().toISOString() }
-      })
-      showToast(type === 'income' ? 'Pemasukan ditambahkan!' : 'Pengeluaran dicatat!')
+      if (isTransfer) {
+        if (accountId === toAccountId) { showToast('Akun tujuan harus berbeda', 'error'); setSaving(false); return }
+        const fromAcc = state.accounts.find(a => a.id === accountId)
+        const toAcc = state.accounts.find(a => a.id === toAccountId)
+        dispatch({ type: 'TRANSFER', payload: { fromId: accountId, toId: toAccountId, amount: parsedAmount, note, date: txDate, fromName: fromAcc?.name, toName: toAcc?.name } })
+        showToast('Transfer berhasil!')
+      } else {
+        dispatch({
+          type: 'ADD_TX',
+          payload: {
+            id: Date.now().toString(), type, amount: parsedAmount, category,
+            accountId, note, date: txDate,
+            struk: struk || null,  // simpan base64 atau null
+            createdAt: new Date().toISOString()
+          }
+        })
+        showToast(type === 'income' ? 'Pemasukan ditambahkan!' : 'Pengeluaran dicatat!')
+      }
+
+      // Navigate setelah dispatch selesai, pakai timeout kecil
+      // untuk hindari blank hitam (race condition antara state update & navigation)
+      setTimeout(() => {
+        setSaving(false)
+        navigate('transactions')
+      }, 100)
+    } catch (e) {
+      showToast('Gagal menyimpan', 'error')
+      setSaving(false)
     }
-    navigate('transactions')
-  }
+  }, [saving, amount, isTransfer, category, accountId, toAccountId, note, date, struk, type, state.accounts, dispatch, navigate])
 
   return (
     <div className="h-full flex flex-col bg-bg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-border" style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
-        <button onClick={() => navigate('dashboard')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>✕</button>
+      <div className="flex items-center justify-between px-4 py-4 border-b border-border"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
+        <button onClick={() => navigate('dashboard')}
+          style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer' }}>✕</button>
         <h1 className="text-white font-bold text-lg">Tambah Transaksi</h1>
-        <button onClick={handleSave} style={{ background: 'none', border: 'none', color: '#00C896', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Simpan</button>
+        <button onClick={handleSave} disabled={saving}
+          style={{ background: 'none', border: 'none', color: saving ? '#5A6080' : '#00C896', fontSize: 15, fontWeight: 700, cursor: saving ? 'default' : 'pointer' }}>
+          {saving ? '...' : 'Simpan'}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-none px-4 py-4">
@@ -81,8 +165,9 @@ export default function AddTransaction({ navigate, params = {} }) {
           <div className="flex items-center gap-2">
             <span className="text-text-sec font-black text-2xl">Rp</span>
             <input type="text" inputMode="numeric" value={displayAmount}
-              onChange={e => handleAmountChange(e.target.value.replace(/\D/g, ''))}
-              placeholder="0" className="flex-1 bg-transparent text-white font-black outline-none placeholder-text-muted"
+              onChange={e => setAmount(e.target.value.replace(/\D/g, ''))}
+              placeholder="0"
+              className="flex-1 bg-transparent text-white font-black outline-none placeholder-text-muted"
               style={{ fontSize: 38, minWidth: 0 }} autoFocus />
           </div>
         </div>
@@ -151,6 +236,36 @@ export default function AddTransaction({ navigate, params = {} }) {
             style={{ colorScheme: 'dark' }} />
         </div>
 
+        {/* Foto Struk */}
+        {!isTransfer && (
+          <div className="mb-4">
+            <p className="text-text-sec text-xs font-semibold mb-2">Foto Struk (opsional)</p>
+            {struk ? (
+              <div className="relative">
+                <img
+                  src={struk}
+                  alt="struk"
+                  className="w-full rounded-2xl object-cover"
+                  style={{ maxHeight: 200 }}
+                  onError={() => setStruk(null)} // fallback kalau gambar rusak
+                />
+                <button onClick={() => setStruk(null)}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer' }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={handleFotoStruk} disabled={loadingPhoto}
+                className="w-full py-4 rounded-2xl border-2 border-dashed card-press flex flex-col items-center gap-2"
+                style={{ borderColor: '#2A2D3E', background: 'transparent', cursor: loadingPhoto ? 'default' : 'pointer' }}>
+                <span style={{ fontSize: 28 }}>{loadingPhoto ? '⏳' : '📷'}</span>
+                <span style={{ color: '#5A6080', fontSize: 12, fontWeight: 600 }}>
+                  {loadingPhoto ? 'Membuka kamera...' : 'Tap untuk foto struk'}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Balance info */}
         {selectedAcc && (
           <div className="mb-4 p-3 rounded-2xl" style={{ background: 'rgba(0,200,150,0.1)', border: '1px solid rgba(0,200,150,0.2)' }}>
@@ -160,7 +275,9 @@ export default function AddTransaction({ navigate, params = {} }) {
           </div>
         )}
 
-        <Button onClick={handleSave}>Simpan Transaksi</Button>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? 'Menyimpan...' : 'Simpan Transaksi'}
+        </Button>
       </div>
     </div>
   )
