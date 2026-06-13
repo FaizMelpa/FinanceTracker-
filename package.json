@@ -1,5 +1,5 @@
 {
-  "name": "cash-journal",
+  "name": "finance-tracker",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -32,5 +32,5 @@
     "tailwindcss": "^3.4.1",
     "vite": "^5.0.11"
   },
-  "description": "Cash Journal - Personal Finance Tracker"
+  "description": "Finance Tracker - Personal Finance App"
 }
