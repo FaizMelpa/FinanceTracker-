@@ -50,7 +50,7 @@ jobs:
         run: python3 gen_icons.py
 
       - name: 🔧 Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: 🔑 Make gradlew executable
         run: chmod +x android/gradlew
